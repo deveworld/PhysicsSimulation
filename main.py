@@ -13,10 +13,10 @@ screen_width = 900
 screen_height = 900
 Fps = float("inf")
 
-simul_speed = 2
+simul_speed = 3
 friction = -1
 
-G = 3
+G = 2
 E = 1
 WALL_E = 0.7
 
@@ -52,9 +52,9 @@ class Planet(pygame.sprite.Sprite):
 
     def calc_gravity(self, otpl):
         force = self.pos - otpl.pos
-        distance = force.magnitude()
         if force == vector(0, 0):
             return vector(0, 0)
+        distance = force.magnitude()
         force = force.normalize()
         strength = -(G * self.m * otpl.m) / (distance ** 2)
         force = force * strength
@@ -76,7 +76,7 @@ class Planet(pygame.sprite.Sprite):
                 continue
 
             f = self.calc_gravity(otpl)
-            self.vel += vector(f.x / self.m, f.y / self.m)
+            self.vel += vector(f.x / self.m, f.y / self.m) * simul_speed
 
 # collision = abs(combinedHitbox-distanceBetween)/combinedHitbox
 # collision = 1
@@ -108,7 +108,7 @@ class Simulation:
         self.clock = pygame.time.Clock()
         self.running = True
         self.m = 100
-        self.rad = 20
+        self.rad = 50
         self.mpos = (0, 0)
 
     def new(self):
@@ -118,7 +118,7 @@ class Simulation:
                  (600, 450, vector(1, -1).normalize())
                  ]
         for pos in poses:
-            self.all_sprites.add(Planet(self, (pos[0], pos[1]), self.m, pos[2]))
+            self.all_sprites.add(Planet(self, (pos[0], pos[1]), self.m, pos[2], self.rad))
         # for x in range(100):
         #	self.all_sprites.add(Planet(self, (random.randrange(0, screen_width),random.randrange(0, screen_height)), 10))
         self.run()
@@ -135,8 +135,8 @@ class Simulation:
             dr_t.start()
             dr_t.join()
 
-    # self.update()
-    # self.draw()
+            # self.update()
+            # self.draw()
 
     def get_mouse_force(self, nowpos):
         if self.mpos == nowpos:
@@ -178,63 +178,47 @@ class Simulation:
                         self.rad = 20
                 if event.key == pygame.K_SPACE:
                     global simul_speed
-                    if simul_speed == 1:
+                    if simul_speed == 10:
                         simul_speed = 0.01
                     elif simul_speed == 0.01:
-                        simul_speed = 1
+                        simul_speed = 10
 
     @staticmethod
-    def reflect_colliding_circles(c1, c2):
-        def calculate_mtd(pl1, pl2):
-            """source: https://stackoverflow.com/q/345838/1093087"""
-            delta = pl1.pos - pl2.pos
-            d = delta.magnitude()
-            return delta * (pl1.radius + pl2.radius - d) / d
+    def reflect_colliding_circles(a, b):
+        delta = vector(a.rect.center[0], a.rect.center[1]) - vector(b.rect.center[0], b.rect.center[1])
+        d = delta.length()
+        mtd = delta * ((a.radius+b.radius)-d)/d
 
-        # inverse masses, mtd, restitution
-        im1 = 1.0 / c1.m
-        im2 = 1.0 / c2.m
-        mtd = calculate_mtd(c1, c2)
-        normal_mtd = mtd.normalize()
-        restitution = 1
+        im1 = 1 / a.m
+        im2 = 1 / b.m
 
-        # impact speed
-        v = c1.vel - c2.vel
-        vn = normal_mtd * v  # v.dot(normal_mtd)
+        a.pos += mtd * (im1 / (im1 + im2))
+        b.pos -= mtd * (im2 / (im1 + im2))
 
-        # circle moving away from each other already -- return
-        # original velocities
+        v = a.vel - b.vel
+        vn = v.dot(mtd.normalize())
         if vn > 0.0:
-            return c1.vel, c2.vel
+            return
 
-        # collision impulse
-        i = (-1.0 * (1.0 + restitution) * vn) / (im1 + im2)
-        impulse = normal_mtd * i
+        i = (-1 * (1.0 + E) * vn) / (im1 + im2)
+        impulse = mtd.normalize() * i
 
-        # change in momentum
-        print(impulse)
-        new_c1_v = c1.vel + (impulse * im1)
-        new_c2_v = c2.vel - (impulse * im2)
-
-        return new_c1_v, new_c2_v
+        a.vel += impulse * im1
+        b.vel -= impulse * im2
 
     def update(self):
-        # self.all_sprites.update()
-        for pu in self.all_sprites:
-            pu.update()
+        self.all_sprites.update()
         for p1 in self.all_sprites:
             for p2 in self.all_sprites:
                 if p1 == p2:
                     continue
 
-                distan = p1.pos - p2.pos
-                distance_between = distan.magnitude()
+                distan = vector(p1.rect.center[0], p1.rect.center[1]) - vector(p2.rect.center[0], p2.rect.center[1])
+                distance_between = distan.length()
                 combined_hitbox = p1.radius + p2.radius
 
                 if combined_hitbox > distance_between:
-                    c1, c2 = self.reflect_colliding_circles(p1, p2)
-                    p1.vel = c1
-                    p2.vel = c2
+                    self.reflect_colliding_circles(p1, p2)
         # tangent = math.atan2(distan.y, distan.x)
         # p1.angle = 2 * tangent - p1.angle
         # p2.angle = 2 * tangent - p2.angle
