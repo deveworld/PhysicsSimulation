@@ -11,9 +11,9 @@ Version = 'Alpha'
 Title = 'Physics Simulation ' + Version
 screen_width = 900
 screen_height = 900
-Fps = float("inf")
+Fps = float("120")
 
-simul_speed = 3
+simul_speed = 1
 friction = -1
 
 G = 2
@@ -42,7 +42,6 @@ class Planet(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect()
         self.rect.center = pos
-        # self.angle = 0
 
         self.pos = vector(pos[0], pos[1])
         if vel is None:
@@ -56,19 +55,13 @@ class Planet(pygame.sprite.Sprite):
             return vector(0, 0)
         distance = force.magnitude()
         force = force.normalize()
-        strength = -(G * self.m * otpl.m) / (distance ** 2)
-        force = force * strength
+        strength = (G * self.m * otpl.m) / (distance ** 2)
+        force = force * strength * -1
         return force
 
     def pos2rect(self):
         self.pos += self.vel * simul_speed
         self.rect.center = self.pos
-
-    # b = vector(self.pos.x, self.pos.y)
-    # a -= b
-    # if not a == vector(0,0):
-    #	a = a.normalize()
-    # self.angle = math.degrees(math.atan2(a.y, a.x))
 
     def update(self):
         for otpl in self.game.all_sprites:
@@ -77,21 +70,6 @@ class Planet(pygame.sprite.Sprite):
 
             f = self.calc_gravity(otpl)
             self.vel += vector(f.x / self.m, f.y / self.m) * simul_speed
-
-# collision = abs(combinedHitbox-distanceBetween)/combinedHitbox
-# collision = 1
-# if ((otpl.pos.x - self.pos.x)*(otpl.vel.x - self.vel.x) < 0) or ((otpl.pos.y - self.pos.y)*(otpl.vel.y - self.vel.y) < 0):
-#	angle = math.atan2((otpl.pos.y - self.pos.y), (otpl.pos.x - self.pos.x))
-#	v1h = self.vel.x*math.cos(angle)+self.vel.y*math.sin(angle)
-#	v1v = self.vel.x*math.sin(angle)-self.vel.y*math.cos(angle)
-#	v2h = otpl.vel.x*math.cos(angle)+otpl.vel.y*math.sin(angle)
-#	v2v = otpl.vel.x*math.sin(angle)-otpl.vel.y*math.cos(angle)
-#	nv1h = (v2h - v1h) * (1 + E) / (self.m / otpl.m + 1) + v1h
-#	nv2h = (v1h - v2h) * (1 + E) / (otpl.m / self.m + 1) + v2h
-#	self.vel.x = (nv1h * math.cos(angle) + v1v * math.sin(angle))# * collision
-#	self.vel.y = (nv1h * math.sin(angle) - v1v * math.cos(angle))# * collision
-#	otpl.vel.x = (nv2h * math.cos(angle) + v2v * math.sin(angle))# * collision
-#	otpl.vel.y = (nv2h * math.sin(angle) - v2v * math.cos(angle))# * collision
 
 
 class Simulation:
@@ -112,20 +90,17 @@ class Simulation:
         self.mpos = (0, 0)
 
     def new(self):
-        poses = [(450, 300, vector(-1, -1).normalize()),
-                 (300, 450, vector(-1, 1).normalize()),
-                 (450, 600, vector(1, 1).normalize()),
-                 (600, 450, vector(1, -1).normalize())
+        poses = [(450, 300, vector(1, 1).normalize()),
+                 (300, 450, vector(1, -1).normalize()),
+                 (450, 600, vector(-1, -1).normalize()),
+                 (600, 450, vector(-1, 1).normalize())
                  ]
         for pos in poses:
             self.all_sprites.add(Planet(self, (pos[0], pos[1]), self.m, pos[2], self.rad))
-        # for x in range(100):
-        #	self.all_sprites.add(Planet(self, (random.randrange(0, screen_width),random.randrange(0, screen_height)), 10))
         self.run()
 
     def run(self):
         while self.playing:
-            # pygame.time.wait(10)
             self.clock.tick(Fps)
             self.events()
             up_t = threading.Thread(target=self.update)
@@ -134,9 +109,6 @@ class Simulation:
             dr_t = threading.Thread(target=self.draw)
             dr_t.start()
             dr_t.join()
-
-            # self.update()
-            # self.draw()
 
     def get_mouse_force(self, nowpos):
         if self.mpos == nowpos:
@@ -178,10 +150,10 @@ class Simulation:
                         self.rad = 20
                 if event.key == pygame.K_SPACE:
                     global simul_speed
-                    if simul_speed == 10:
+                    if simul_speed == 1:
                         simul_speed = 0.01
                     elif simul_speed == 0.01:
-                        simul_speed = 10
+                        simul_speed = 1
 
     @staticmethod
     def reflect_colliding_circles(a, b):
@@ -202,6 +174,12 @@ class Simulation:
 
         i = (-1 * (1.0 + E) * vn) / (im1 + im2)
         impulse = mtd.normalize() * i
+        if abs(impulse.x) < 0.01:
+            impulse.x = 0
+        if abs(impulse.y) < 0.01:
+            impulse.y = 0
+        if impulse == vector(0, 0):
+            return
 
         a.vel += impulse * im1
         b.vel -= impulse * im2
@@ -219,18 +197,6 @@ class Simulation:
 
                 if combined_hitbox > distance_between:
                     self.reflect_colliding_circles(p1, p2)
-        # tangent = math.atan2(distan.y, distan.x)
-        # p1.angle = 2 * tangent - p1.angle
-        # p2.angle = 2 * tangent - p2.angle
-
-        # (p1.vel, p2.vel) = (p2.vel, p1.vel)
-
-        # angle = 0.3 * math.pi + tangent
-        # p1.pos.x += math.sin(angle)
-        # p1.pos.y -= math.cos(angle)
-        # p2.pos.x -= math.sin(angle)
-        # p2.pos.y += math.cos(angle)
-        # p1.pos2rect()
 
         for pl in self.all_sprites:
             pl.pos2rect()
